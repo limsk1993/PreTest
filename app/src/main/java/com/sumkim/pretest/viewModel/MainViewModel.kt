@@ -1,7 +1,6 @@
 package com.sumkim.pretest.viewModel
 
 import android.content.Context
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.lifecycle.ViewModel
@@ -17,6 +16,8 @@ import com.sumkim.pretest.response.SectionProduct
 import com.sumkim.pretest.wishDataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,7 +50,8 @@ class MainViewModel @Inject constructor(
     private val _nextPage: MutableStateFlow<Int?> = MutableStateFlow(null)
     val nextPage: StateFlow<Int?> = _nextPage.asStateFlow()
 
-    val sectionProducts = mutableStateMapOf<Int, List<SectionProduct>>()
+    private val _sectionProducts: MutableStateFlow<MutableMap<Int, List<SectionProduct>>?> = MutableStateFlow(mutableMapOf())
+    val sectionProducts: StateFlow<Map<Int, List<SectionProduct>>?> = _sectionProducts.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -58,30 +60,40 @@ class MainViewModel @Inject constructor(
     }
 
     fun getSection() = viewModelScope.launch {
-        ar.requestGetSections(
-            context,
-            SectionsRequest(nextPage.value)
-        ).onSuccess {
-            for (sectionInfo in it.sectionInfos ?: listOf()) {
-                sectionInfo.id?.let { id ->
-                    getSectionProducts(id)
-                }
-            }
+        try {
+            _isLoading.value = true
 
-            _sectionInfos.value = it.sectionInfos
-            _nextPage.value = it.paging?.nextPage
+            ar.requestGetSections(
+                context,
+                SectionsRequest(nextPage.value)
+            ).onSuccess { response ->
+                val productJobs = response.sectionInfos?.mapNotNull { sectionInfo ->
+                    sectionInfo.id?.let { id ->
+                        async { getSectionProducts(id) }
+                    }
+                } ?: emptyList()
+
+                productJobs.awaitAll()
+
+                _sectionInfos.value = response.sectionInfos
+                _nextPage.value = response.paging?.nextPage
+                _sectionProducts.value = sectionProducts.value?.toMutableMap()
+            }.onError {
+                _eventChannel.send(MainEvent.Toast(it))
+            }
+        } catch (e: Exception) {
+            _eventChannel.send(MainEvent.Toast(e.message ?: "에러가 발생했습니다."))
+        } finally {
             _isLoading.value = false
-        }.onError {
-            _eventChannel.send(MainEvent.Toast(it))
         }
     }
 
-    private fun getSectionProducts(sectionId: Int) = viewModelScope.launch {
+    private suspend fun getSectionProducts(sectionId: Int) {
         ar.requestGetSectionProducts(
             context,
             SectionProductsRequest(sectionId),
         ).onSuccess {
-            sectionProducts[sectionId] = it.sectionProducts ?: listOf()
+            _sectionProducts.value?.set(sectionId, it.sectionProducts ?: listOf())
         }.onError {
             _eventChannel.send(MainEvent.Toast(it))
         }
@@ -101,7 +113,6 @@ class MainViewModel @Inject constructor(
 
     // 새로고침이 nextPage까지 초기화하는지 확인되지 않아 일단 getSection만 호출하여 계속 상품이 변경되도록 한다.
     fun refresh() = viewModelScope.launch {
-        _isLoading.value = true
         getSection()
     }
 }

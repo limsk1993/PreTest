@@ -74,7 +74,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val isLoading by vm.isLoading.collectAsStateWithLifecycle()
             val sectionInfos by vm.sectionInfos.collectAsStateWithLifecycle()
-            val sectionProducts = vm.sectionProducts
+            val sectionProducts by vm.sectionProducts.collectAsStateWithLifecycle()
             val wishedIds by vm.wishedIds.collectAsStateWithLifecycle()
             vm.eventChannel.collectWithLifecycle {
                 when (it) {
@@ -88,7 +88,7 @@ class MainActivity : ComponentActivity() {
                     MainScreen(
                         modifier = Modifier.padding(innerPadding),
                         sectionInfos = sectionInfos ?: listOf(),
-                        sectionProducts = sectionProducts,
+                        sectionProducts = sectionProducts ?: mapOf(),
                         wishedIds = wishedIds,
                         clickWished = vm::toggleWish,
                         isRefreshing = isLoading,
