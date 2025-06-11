@@ -35,12 +35,14 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.pullToRefresh
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -50,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.sumkim.pretest.Extensions.collectWithLifecycle
@@ -62,41 +65,49 @@ import kotlin.math.round
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-
-    private val vm: MainViewModel by viewModels()
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        vm.getSection()
-
         enableEdgeToEdge()
         setContent {
-            val isLoading by vm.isLoading.collectAsStateWithLifecycle()
-            val sectionInfos by vm.sectionInfos.collectAsStateWithLifecycle()
-            val sectionProducts by vm.sectionProducts.collectAsStateWithLifecycle()
-            val wishedIds by vm.wishedIds.collectAsStateWithLifecycle()
-            vm.eventChannel.collectWithLifecycle {
-                when (it) {
-                    is MainEvent.Toast -> {
-                        if (it.msg != null) Toast.makeText(this, it.msg, Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
             PreTestTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    MainScreen(
-                        modifier = Modifier.padding(innerPadding),
-                        sectionInfos = sectionInfos ?: listOf(),
-                        sectionProducts = sectionProducts ?: mapOf(),
-                        wishedIds = wishedIds,
-                        clickWished = vm::toggleWish,
-                        isRefreshing = isLoading,
-                        onRefresh = vm::refresh
-                    )
-                }
+                MainRoute()
             }
         }
+    }
+}
+
+@Composable
+fun MainRoute(
+    vm: MainViewModel = hiltViewModel()
+) {
+    LaunchedEffect(Unit) {
+        if (vm.ensureInit()) return@LaunchedEffect
+        vm.getSection()
+    }
+
+    val context = LocalContext.current
+    val isLoading by vm.isLoading.collectAsStateWithLifecycle()
+    val sectionInfos by vm.sectionInfos.collectAsStateWithLifecycle()
+    val sectionProducts by vm.sectionProducts.collectAsStateWithLifecycle()
+    val wishedIds by vm.wishedIds.collectAsStateWithLifecycle()
+    vm.eventChannel.collectWithLifecycle {
+        when (it) {
+            is MainEvent.Toast -> {
+                if (it.msg != null) Toast.makeText(context, it.msg, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+        MainScreen(
+            modifier = Modifier.padding(innerPadding),
+            sectionInfos = sectionInfos ?: listOf(),
+            sectionProducts = sectionProducts ?: mapOf(),
+            wishedIds = wishedIds,
+            clickWished = vm::toggleWish,
+            isRefreshing = isLoading,
+            onRefresh = vm::refresh
+        )
     }
 }
 

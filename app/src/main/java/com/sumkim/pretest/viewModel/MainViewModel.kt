@@ -3,7 +3,6 @@ package com.sumkim.pretest.viewModel
 import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringSetPreferencesKey
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sumkim.pretest.MainEvent
 import com.sumkim.pretest.api.onError
@@ -31,7 +30,7 @@ import javax.inject.Inject
 class MainViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val ar: ApiRepository
-): ViewModel() {
+): BaseViewModel() {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
